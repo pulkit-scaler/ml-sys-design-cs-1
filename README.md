@@ -11,6 +11,12 @@ Everything is synthetic and seeded, and every version is pinned. A rebuild gives
 the same world, index, models and pages, and a different kind of chip (Intel
 against ARM) gives nearly the same. Only the milliseconds differ between machines.
 
+## Pre-read
+
+[The Feed Lab Toolkit](https://pulkit-scaler.github.io/ml-sys-design-cs-1/) explains the four
+tools in this lab that are new to most learners, Redis, Kafka, Prometheus and Grafana, with
+real output from the running system. About a 20-minute read. Its source is `docs/index.html`.
+
 ## What runs
 
 | Service | What it is in the design | Built from |
