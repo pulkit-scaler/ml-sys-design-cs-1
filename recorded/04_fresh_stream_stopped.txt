@@ -1,0 +1,19 @@
+$ docker compose stop stream-worker
+page 1 for user 101         topic 23: 11  topic 20: 9
+
+The user hides 3 items from topic 23. Each hide goes app -> Kafka -> stream worker -> Redis.
+  NOT PROCESSED after 5 s: 3 events waiting in Kafka. Is the stream worker running?
+page 2, after the hides     topic 23: 11  topic 20: 9
+
+topic 23 on the page: 11 before, 11 after
+session features the ranker read for page 2: {'engaged': {}, 'hidden': {}}
+
+$ python3 lab.py status
+  stream     51 events sent, 48 turned into features
+
+$ docker compose start stream-worker
+$ python3 lab.py status
+  stream     51 events sent, 51 turned into features
+$ python3 lab.py page --user 101
+next page for user 101      topic 20: 20
+session features the ranker read: {'engaged': {}, 'hidden': {'23': 3.0}}

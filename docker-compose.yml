@@ -1,0 +1,119 @@
+# Feed lab: a small, real home-feed system. See README.md.
+# All settings come from .env (see .env.example). Defaults are set here, so .env is optional.
+name: feedlab
+
+x-py: &py
+  build: .
+  image: feedlab-app:1
+  restart: unless-stopped
+  environment: &pyenv
+    N_ITEMS: ${N_ITEMS:-1000000}
+    N_USERS: ${N_USERS:-100000}
+    DATA_DIR: /data
+  volumes:
+    - data:/data
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.18
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --kafka-addr=internal://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:9092
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 3s
+      retries: 40
+
+  bootstrap:
+    <<: *py
+    restart: "no"
+    command: ["python", "bootstrap.py"]
+    environment:
+      <<: *pyenv
+      OMP_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "4"
+    depends_on:
+      redis: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+
+  retrieval:
+    <<: *py
+    command: ["uvicorn", "retrieval:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning"]
+    environment:
+      <<: *pyenv
+      NPROBE: ${NPROBE:-128}
+    cpus: ${RETRIEVAL_CPUS:-2.0}
+    ports: ["${BIND_ADDR:-127.0.0.1}:${RETRIEVAL_PORT:-8081}:8000"]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+
+  ranker:
+    <<: *py
+    command: ["uvicorn", "ranker:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning"]
+    environment:
+      <<: *pyenv
+      RANKER_EXTRA_MS: ${RANKER_EXTRA_MS:-0}
+    cpus: ${RANKER_CPUS:-1.0}
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+
+  feed:
+    <<: *py
+    command: ["uvicorn", "feed:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning"]
+    environment:
+      <<: *pyenv
+      RANKER_TIMEOUT_MS: ${RANKER_TIMEOUT_MS:-80}
+      RETRIEVAL_TIMEOUT_MS: ${RETRIEVAL_TIMEOUT_MS:-60}
+      VARIETY_PENALTY: ${VARIETY_PENALTY:-0.05}
+    cpus: ${FEED_CPUS:-1.0}
+    ports: ["${BIND_ADDR:-127.0.0.1}:${FEED_PORT:-8080}:8000"]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      retrieval: {condition: service_started}
+      ranker: {condition: service_started}
+
+  stream-worker:
+    <<: *py
+    command: ["python", "stream_worker.py"]
+    cpus: 0.5
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=1d"]
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["${BIND_ADDR:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/feed.json
+      GF_USERS_DEFAULT_THEME: light
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["${BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  data:

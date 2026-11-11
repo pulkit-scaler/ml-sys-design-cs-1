@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+scrape_configs:
+  - job_name: feed
+    static_configs: [{targets: ["feed:8000"]}]
+  - job_name: retrieval
+    static_configs: [{targets: ["retrieval:8000"]}]
+  - job_name: ranker
+    static_configs: [{targets: ["ranker:8000"]}]
+  - job_name: stream-worker
+    static_configs: [{targets: ["stream-worker:8000"]}]

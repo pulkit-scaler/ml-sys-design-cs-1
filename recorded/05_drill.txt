@@ -1,0 +1,44 @@
+
+--- ranker healthy ---
+      2s   20.0 req/s   p50   25.9 ms   p99   35.2 ms   not full ranking  0.0%   errors 0
+      4s   20.0 req/s   p50   25.3 ms   p99   43.4 ms   not full ranking  0.0%   errors 0
+      6s   20.0 req/s   p50   25.5 ms   p99   60.5 ms   not full ranking  0.0%   errors 0
+      8s   20.0 req/s   p50   25.5 ms   p99   56.2 ms   not full ranking  0.0%   errors 0
+     10s   20.0 req/s   p50   26.1 ms   p99   36.3 ms   not full ranking  0.0%   errors 0
+     12s   20.0 req/s   p50   25.0 ms   p99   29.7 ms   not full ranking  0.0%   errors 0
+     14s   20.0 req/s   p50   25.2 ms   p99   29.8 ms   not full ranking  0.0%   errors 0
+     16s   20.0 req/s   p50   25.4 ms   p99   42.0 ms   not full ranking  0.0%   errors 0
+     18s   20.0 req/s   p50   25.0 ms   p99   30.4 ms   not full ranking  0.0%   errors 0
+     20s   20.0 req/s   p50   25.1 ms   p99   57.7 ms   not full ranking  0.0%   errors 0
+$ docker compose stop ranker
+
+--- ranker stopped ---
+      2s   20.0 req/s   p50   20.0 ms   p99   35.2 ms   not full ranking 100.0%   errors 0
+      4s   20.0 req/s   p50   18.5 ms   p99   26.8 ms   not full ranking 100.0%   errors 0
+      6s   20.0 req/s   p50   18.7 ms   p99   29.9 ms   not full ranking 100.0%   errors 0
+      8s   20.0 req/s   p50   17.6 ms   p99   21.4 ms   not full ranking 100.0%   errors 0
+     10s   20.0 req/s   p50   19.4 ms   p99   46.0 ms   not full ranking 100.0%   errors 0
+     12s   20.0 req/s   p50   17.6 ms   p99   21.6 ms   not full ranking 100.0%   errors 0
+     14s   20.0 req/s   p50   17.6 ms   p99   20.5 ms   not full ranking 100.0%   errors 0
+     16s   20.0 req/s   p50   18.4 ms   p99   46.1 ms   not full ranking 100.0%   errors 0
+     18s   20.0 req/s   p50   17.6 ms   p99   21.2 ms   not full ranking 100.0%   errors 0
+     20s   20.0 req/s   p50   18.9 ms   p99   30.9 ms   not full ranking 100.0%   errors 0
+$ docker compose start ranker
+$ docker compose pause ranker
+
+--- ranker hung (paused) ---
+      2s   19.0 req/s   p50  103.9 ms   p99  171.1 ms   not full ranking 100.0%   errors 0
+      4s   20.5 req/s   p50  104.5 ms   p99  137.2 ms   not full ranking 100.0%   errors 0
+      6s   20.0 req/s   p50  104.0 ms   p99  122.9 ms   not full ranking 100.0%   errors 0
+      8s   19.5 req/s   p50  103.9 ms   p99  125.1 ms   not full ranking 100.0%   errors 0
+     10s   20.5 req/s   p50  104.0 ms   p99  137.8 ms   not full ranking 100.0%   errors 0
+     12s   19.5 req/s   p50  104.7 ms   p99  122.7 ms   not full ranking 100.0%   errors 0
+     14s   20.0 req/s   p50  104.4 ms   p99  123.3 ms   not full ranking 100.0%   errors 0
+     16s   20.0 req/s   p50  103.5 ms   p99  171.6 ms   not full ranking 100.0%   errors 0
+     18s   20.5 req/s   p50  103.6 ms   p99  119.6 ms   not full ranking 100.0%   errors 0
+     20s   19.5 req/s   p50  104.3 ms   p99  140.2 ms   not full ranking 100.0%   errors 0
+
+phase                    requests   p50 ms   p99 ms   served by
+ranker healthy                321     25.2     42.0   {'full': 321}
+ranker stopped                321     18.3     30.9   {'light_fallback': 321}
+ranker hung (paused)          321    104.0    128.8   {'light_fallback': 321}
