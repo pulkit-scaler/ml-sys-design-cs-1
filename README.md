@@ -70,6 +70,7 @@ Stop with `docker compose stop`, which keeps the built world for next time.
 `docker compose down -v` removes everything, including the built world.
 
 Run `smoke` before every class. If it prints `SMOKE PASSED`, every demo below works.
+In class, `python3 lab.py show` walks you through them in order (see the guided showcase below).
 
 ## The demos
 
@@ -83,6 +84,36 @@ The notebook has the full script, with what to say and the chat questions.
 | When the ranker fails | `python3 lab.py load` in one terminal, `docker compose stop ranker` and `pause ranker` in another | Fallback with no errors, and the cost of a hung dependency |
 
 `python3 lab.py drill` runs the failure demo by itself, for a backup or a recording.
+
+## Guided showcase for the instructor
+
+`python3 lab.py show` runs every demo above in class order, one step at a time. For each
+step it prints what to put on screen and the question to post in the chat, then waits.
+Press Enter to run the demo, `s` to skip it or `q` to stop. After each demo it prints
+PASS or FAIL checks, a line that reads the live numbers, and the teaching point.
+
+```bash
+python3 lab.py show --list              # the six steps, with notebook section and minutes
+python3 lab.py show                     # the whole class run, Enter between steps
+python3 lab.py show --only fresh,stale  # some steps, for example to rehearse one
+python3 lab.py show --auto              # no pauses, about two minutes, for a rehearsal or a recording
+```
+
+| Step | Notebook | What the checks test |
+|---|---|---|
+| `trace` | 9.2 | A full page of 20 from the full ranker, every hop's p99 inside its budget, the request's p99 inside 175 ms |
+| `sweep` | 9.3 | Recall rises with nprobe, nprobe 128 finds at least 0.9 of the true top 100, 256 clusters cost more vectors than 128 |
+| `nprobe` | 9.3, optional | Under load, 8 times the clusters makes each search slower, read from the "ANN search time" histogram |
+| `fresh` | 9.4 | Three hides become features in Redis, and the hidden topic shrinks on the next page |
+| `stale` | 9.4 | With the stream worker stopped, the hides wait in Kafka and the page does not change, with no error. Restarted, it catches up |
+| `drill` | 9.5 | Ranker stopped, the fallback serves with no errors. Ranker hung, still no errors, but p50 jumps past the 80 ms deadline |
+
+The show stops and restarts containers as the demos need, and always leaves the
+ranker and the stream worker running and nprobe as it found it, even after Ctrl-C.
+A failed check does not end the show. It says which demo failed, so you can talk
+through that demo's recorded run in the notebook instead. `recorded/07_show.txt` is
+a full `--auto` run. Live numbers differ from it run to run, which is why the checks
+test the direction of each effect rather than exact values.
 
 ## Settings
 
@@ -105,7 +136,7 @@ After changing `.env`, run `docker compose up -d` again. Changing `N_ITEMS` or
 Any Linux VM with Docker, 8 vCPUs and 8 GB is plenty. In `.env`, set
 `BIND_ADDR=0.0.0.0` and open the Grafana port in the firewall, or keep
 `127.0.0.1` and use an SSH tunnel, for example `ssh -L 3000:localhost:3000 -L 8080:localhost:8080 vm`.
-Run `lab.py` on the VM itself. To drive the read-only demos from your own
+Run `lab.py` on the VM itself, and always for `smoke`, `drill` and `show`, which stop and start containers. To drive the read-only demos from your own
 machine instead, set `LAB_HOST` to the VM's address, for example
 `LAB_HOST=10.0.0.5 python3 lab.py trace`.
 
