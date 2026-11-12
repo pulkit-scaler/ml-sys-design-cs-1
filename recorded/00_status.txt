@@ -1,4 +1,4 @@
   feed       up   http://127.0.0.1:8080
-  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 128
-  stream     42 events sent, 42 turned into features
+  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 256
+  stream     6 events sent, 6 turned into features
   dashboard  http://localhost:3000  (Feed lab)

@@ -1,188 +1,188 @@
 
 ==============================================================================
-STEP 1 of 6   One request, hop by hop   (notebook 9.2, about 4 min)
+STEP 1 of 6   One request, hop by hop   (notebook 11.2, about 4 min)
 ==============================================================================
-ON SCREEN       The section 2 latency budget on the whiteboard.
+ON SCREEN       The section 3 latency budget on the whiteboard.
 POST IN CHAT    "Which hop will be slowest?"
 
 One feed request for user 42  (arm B, served by full)
 
 hop                                this request  p99 of 200  budget
 network and request parsing              0.0 ms      0.0 ms   10 ms
-fetch user features                      0.2 ms      0.9 ms   15 ms
-cheap search, in parallel                5.0 ms     11.5 ms   30 ms
-fetch item features                      4.1 ms      6.2 ms   20 ms
-light model                              0.3 ms      0.3 ms   15 ms
-full ranking model                       5.4 ms      9.7 ms   60 ms
+fetch user features                      0.4 ms      0.7 ms   15 ms
+cheap search, in parallel                4.7 ms      8.7 ms   30 ms
+fetch item features                      3.7 ms      5.0 ms   20 ms
+light model                              0.2 ms      0.3 ms   15 ms
+full ranking model                       4.2 ms     18.9 ms   60 ms
 combine scores, arrange the page         0.3 ms      0.5 ms   10 ms
-build the response                       0.3 ms      0.6 ms   15 ms
-total, server side                      15.6 ms     30.7 ms  175 ms
+build the response                       0.3 ms      0.7 ms   15 ms
+total, server side                      13.8 ms     60.5 ms  175 ms
 
-candidates  two_tower 1,500, new_items 150, trending 300
-            1,929 after merging and removing seen items, 500 after the light model, 20 on the page
+candidates  two_tower 1,500, new_items 150, trending 100
+            1,731 after merging and removing seen items, 500 after the light model, 20 on the page
 
 pos     item topic  source      P(click) P(finish)  P(hide)   value
-  1    16689     4  trending       0.386     0.114    0.009   1.970
-  2   715515     4  two_tower      0.238     0.084    0.006   1.530
-  3   689968     8  trending       0.330     0.066    0.014   1.196
-  4   441061     4  two_tower      0.350     0.068    0.011   1.305
-  5   309293     4  two_tower      0.371     0.058    0.012   1.221
+  1   401777     5  two_tower      0.694     0.491    0.000   2.788
+  2   900433    11  new_items      0.571     0.459    0.000   2.502
+  3   462106     5  two_tower      0.644     0.471    0.000   2.676
+  4    56774     1  two_tower      0.657     0.378    0.000   2.309
+  5   921054    11  trending       0.591     0.444    0.000   2.490
 
-page of 20: 2 topics, sources {'trending': 3, 'two_tower': 16, 'new_items': 1}
+page of 20: 3 topics, sources {'two_tower': 14, 'new_items': 4, 'trending': 2}
   PASS  one request is served by the full ranker, a page of 20
   PASS  every hop's p99 is inside its budget
-  PASS  the whole request's p99 is 30.7 ms, inside 175 ms
-  read  slowest hops by p99 in this run: cheap search, in parallel 11.5 ms, then full ranking model 9.7 ms
-  note  the eight hop p99s add up to 29.7 ms, the request's p99 is 30.7 ms. They need not agree.
+  PASS  the whole request's p99 is 60.5 ms, inside 175 ms
+  read  slowest hops by p99 in this run: full ranking model 18.9 ms, then cheap search, in parallel 8.7 ms
+  note  the eight hop p99s add up to 34.9 ms, the request's p99 is 60.5 ms. They need not agree.
 
-TEACHING POINT  Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,930 candidates between services, not the index search, so moving data can cost more than finding it. Per-hop p99s do not add up to the request's p99, so measure the whole request too.
+TEACHING POINT  Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,730 candidates between services, not the index search, so moving data can cost more than finding it. Per-hop p99s do not add up to the request's p99, so measure the whole request too.
 
 ==============================================================================
-STEP 2 of 6   Recall against work, on a real index   (notebook 9.3, about 4 min)
+STEP 2 of 6   Recall against work, on a real index   (notebook 11.3, about 4 min)
 ==============================================================================
 ON SCREEN       The cluster drawing from section 5.
-POST IN CHAT    "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 4%, 20% or 50%?"
+POST IN CHAT    "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 7%, 25% or 50%?"
 
 1,000,000 items in 4,000 clusters, 200 users, recall@100 against exact search
 
  nprobe  recall@100  vectors scored   share  mean ms  p99 ms
-  exact       1.000       1,000,000  100.0%    20.12  146.49
-      1       0.045           4,275    0.4%     0.06    0.11
-      4       0.137           5,111    0.5%     0.20    1.01
-     16       0.364           8,486    0.8%     0.44    3.46
-     64       0.775          21,865    2.2%     0.41    1.44
-    128       0.957          39,029    3.9%     0.31    0.54
-    256       0.995          69,832    7.0%     0.50    0.65
-   1024       1.000         261,651   26.2%     1.78    2.34
+  exact       1.000       1,000,000  100.0%    12.39   29.20
+      1       0.029           4,240    0.4%     0.03    0.04
+      4       0.091           5,028    0.5%     0.04    0.05
+     16       0.250           8,246    0.8%     0.06    0.08
+     64       0.583          21,184    2.1%     0.14    0.23
+    128       0.797          38,284    3.8%     0.24    0.33
+    256       0.951          71,391    7.1%     0.44    0.61
+   1024       1.000         263,007   26.3%     1.48    1.95
   PASS  recall rises with nprobe
-  PASS  nprobe 128 finds 0.957 of the true top 100
-  read  nprobe 128 scores 3.9% of the catalogue, 65x faster than exact search on average
-  PASS  128 -> 256 clusters costs 1.8x the vectors for +0.038 recall
+  PASS  nprobe 256, the default, finds 0.951 of the true top 100
+  read  nprobe 256 scores 7.1% of the catalogue, 28x faster than exact search on average
+  PASS  256 -> 1024 clusters costs 3.7x the vectors for +0.049 recall
 
-TEACHING POINT  Scoring about 4% of the catalogue finds about 95 of the true top 100. Each extra point of recall costs more than the one before.
+TEACHING POINT  Scoring about 7% of the catalogue finds about 95 of the true top 100. Each extra point of recall costs more than the one before.
 
 ==============================================================================
-STEP 3 of 6   The same trade-off under load (optional)   (notebook 9.3, about 3 min)
+STEP 3 of 6   The same trade-off under load (optional)   (notebook 11.3, about 3 min)
 ==============================================================================
 ON SCREEN       Grafana: the nprobe tile, 'ANN search time' and 'p99 per hop'.
 POST IN CHAT    "Retrieval will search 8 times as many clusters. Is each search about as fast, a few times slower, or 8 times slower?"
 
 Background traffic at 20 requests a second, so the index is busy. About 10 seconds at each setting.
-  nprobe  128   mean ANN search  1.35 ms over 143 searches   candidates hop p50   6.0 ms
-  nprobe 1024   mean ANN search  2.51 ms over 141 searches   candidates hop p50   6.8 ms
-  nprobe put back to 128
-  PASS  8x the clusters makes each search 1.9x slower under load (1.35 -> 2.51 ms)
+  nprobe  256   mean ANN search  1.22 ms over 138 searches   candidates hop p50   4.9 ms
+  nprobe 2048   mean ANN search  4.10 ms over 141 searches   candidates hop p50   8.0 ms
+  nprobe put back to 256
+  PASS  8x the clusters makes each search 3.4x slower under load (1.22 -> 4.10 ms)
   note  the whole candidates hop moves less, and noisily, because most of it is moving data, as in trace
 
-TEACHING POINT  A few times slower, not 8x, since each search has a fixed cost. More recall is still paid for in latency on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 9.1.
+TEACHING POINT  A few times slower, not 8x, since each search has a fixed cost. More recall is still paid for in latency on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 11.1.
 
 ==============================================================================
-STEP 4 of 6   A feed that reacts   (notebook 9.4, about 3 min)
+STEP 4 of 6   A feed that reacts   (notebook 11.4, about 3 min)
 ==============================================================================
-ON SCREEN       The lab picture in 9.1, to trace app -> Kafka -> stream worker -> Redis.
-POST IN CHAT    "User 505's first page has 16 items from one topic. After three hides, how many from that topic stay on the next page?"
+ON SCREEN       The lab picture in 11.1, to trace app -> Kafka -> stream worker -> Redis.
+POST IN CHAT    "User 505's first page has 14 items from one topic, their favourite. After three hides, how many from that topic stay on the next page?"
 
-page 1 for user 505         topic 1: 16  topic 4: 3  topic 6: 1
+page 1 for user 505         topic 1: 14  topic 5: 3  topic 11: 1  topic 19: 1  topic 7: 1
 
 The user hides 3 items from topic 1. Each hide goes app -> Kafka -> stream worker -> Redis.
-  all events turned into features after 55 ms (the last one took 12 ms from app to Redis)
-page 2, after the hides     topic 6: 11  topic 4: 9
+  all events turned into features after 55 ms (the last one took 15 ms from app to Redis)
+page 2, after the hides     topic 5: 17  topic 14: 2  topic 6: 1
 
-topic 1 on the page: 16 before, 0 after
+topic 1 on the page: 14 before, 0 after
 session features the ranker read for page 2: {'engaged': {}, 'hidden': {'1': 3.0}}
   PASS  all three hides became features in Redis, 55 ms after they were sent
-  PASS  the hidden topic shrinks on the next page (16 -> 0)
+  PASS  the hidden topic shrinks on the next page (14 -> 0)
 
-TEACHING POINT  The hides became features within a second, and the very next page changed. The user tower moved, so retrieval found different items, and the ranker read the hides as a feature.
+TEACHING POINT  The hides became features within a second, and the very next page changed. The user tower moved, so retrieval found different items, and the ranker read the hides as a feature. It saw almost no hides in the real log, so how it reads three is an extrapolation, not something it learned.
 
 ==============================================================================
-STEP 5 of 6   Deliberate failure: the stream stops   (notebook 9.4, about 4 min)
+STEP 5 of 6   Deliberate failure: the stream stops   (notebook 11.4, about 4 min)
 ==============================================================================
 ON SCREEN       Grafana's 'Stream backlog' tile.
 POST IN CHAT    "The stream worker is stopped and the user hides three items. Did the user see an error?"
 
 $ docker compose stop stream-worker
-page 1 for user 101         topic 23: 11  topic 20: 9
+page 1 for user 101         topic 2: 11  topic 5: 4  topic 11: 2  topic 19: 1  topic 23: 1
 
-The user hides 3 items from topic 23. Each hide goes app -> Kafka -> stream worker -> Redis.
+The user hides 3 items from topic 2. Each hide goes app -> Kafka -> stream worker -> Redis.
   NOT PROCESSED after 5 s: 3 events waiting in Kafka. Is the stream worker running?
-page 2, after the hides     topic 23: 11  topic 20: 9
+page 2, after the hides     topic 2: 20
 
-topic 23 on the page: 11 before, 11 after
+topic 2 on the page: 11 before, 20 after
 session features the ranker read for page 2: {'engaged': {}, 'hidden': {}}
   PASS  with the worker stopped, the hides wait in Kafka
-  PASS  and the next page did not change, with no error
+  PASS  and the hidden topic did not shrink (11 -> 20), with no error
 
   feed       up   http://127.0.0.1:8080
-  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 128
-  stream     36 events sent, 33 turned into features
+  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 256
+  stream     6 events sent, 3 turned into features
   dashboard  http://localhost:3000  (Feed lab)
 $ docker compose start stream-worker
 
   feed       up   http://127.0.0.1:8080
-  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 128
-  stream     36 events sent, 36 turned into features
+  retrieval  up   http://127.0.0.1:8081  1,000,000 items, 4,000 clusters, nprobe 256
+  stream     6 events sent, 6 turned into features
   dashboard  http://localhost:3000  (Feed lab)
-  PASS  the restarted worker caught up, 36 of 36 events
+  PASS  the restarted worker caught up, 6 of 6 events
 
-next page for user 101      topic 20: 20
-session features the ranker read: {'engaged': {}, 'hidden': {'23': 3.0}}
+next page for user 101      topic 1: 11  topic 23: 7  topic 5: 1  topic 15: 1
+session features the ranker read: {'engaged': {}, 'hidden': {'2': 3.0}}
 
-TEACHING POINT  No error, a full page, quickly. Just stale. A stale feed looks healthy. Only the backlog shows it, and Kafka kept the events, so the worker caught up. Alert on the backlog.
+TEACHING POINT  No error, a full page, quickly. Just stale, the user asked for less of a topic and did not get it. A stale feed looks healthy. Only the backlog shows it, and Kafka kept the events, so the worker caught up. Alert on the backlog.
 
 ==============================================================================
-STEP 6 of 6   When the ranker fails, then hangs   (notebook 9.5, about 5 min)
+STEP 6 of 6   When the ranker fails, then hangs   (notebook 11.5, about 5 min)
 ==============================================================================
 ON SCREEN       Grafana's 'How requests were served' panel and the latency panel.
 POST IN CHAT    "The ranker is stopped under load. Did any user see an error? Then, when it hangs instead, what happens to p50?"
 
 
 --- ranker healthy ---
-      2s   20.0 req/s   p50   24.7 ms   p99   99.8 ms   not full ranking  0.0%   errors 0
-      4s   20.0 req/s   p50   24.0 ms   p99  106.7 ms   not full ranking  0.0%   errors 0
-      6s   20.0 req/s   p50   24.5 ms   p99   52.8 ms   not full ranking  0.0%   errors 0
-      8s   20.0 req/s   p50   24.1 ms   p99   94.8 ms   not full ranking  0.0%   errors 0
-     10s   20.0 req/s   p50   24.1 ms   p99  107.3 ms   not full ranking  2.5%   errors 0
-     12s   20.0 req/s   p50   21.5 ms   p99   71.6 ms   not full ranking  0.0%   errors 0
-     14s   20.0 req/s   p50   22.5 ms   p99   29.5 ms   not full ranking  0.0%   errors 0
-     16s   20.0 req/s   p50   23.0 ms   p99   28.6 ms   not full ranking  0.0%   errors 0
-     18s   20.0 req/s   p50   21.6 ms   p99   25.7 ms   not full ranking  0.0%   errors 0
-     20s   20.0 req/s   p50   20.9 ms   p99   45.8 ms   not full ranking  0.0%   errors 0
+      2s   20.0 req/s   p50   24.4 ms   p99   34.8 ms   not full ranking  0.0%   errors 0
+      4s   20.0 req/s   p50   24.2 ms   p99   29.4 ms   not full ranking  0.0%   errors 0
+      6s   20.0 req/s   p50   23.8 ms   p99   91.7 ms   not full ranking  0.0%   errors 0
+      8s   20.0 req/s   p50   23.3 ms   p99   44.0 ms   not full ranking  0.0%   errors 0
+     10s   20.0 req/s   p50   22.8 ms   p99   37.3 ms   not full ranking  0.0%   errors 0
+     12s   20.0 req/s   p50   22.9 ms   p99   29.3 ms   not full ranking  0.0%   errors 0
+     14s   20.0 req/s   p50   23.0 ms   p99  103.6 ms   not full ranking  2.5%   errors 0
+     16s   20.0 req/s   p50   23.7 ms   p99   46.1 ms   not full ranking  0.0%   errors 0
+     18s   20.0 req/s   p50   24.7 ms   p99   60.9 ms   not full ranking  0.0%   errors 0
+     20s   20.0 req/s   p50   24.6 ms   p99  100.8 ms   not full ranking  2.5%   errors 0
 $ docker compose stop ranker
 
 --- ranker stopped ---
-      2s   20.0 req/s   p50   24.4 ms   p99   40.5 ms   not full ranking 100.0%   errors 0
-      4s   20.0 req/s   p50   20.8 ms   p99   30.6 ms   not full ranking 100.0%   errors 0
-      6s   20.0 req/s   p50   21.7 ms   p99   28.9 ms   not full ranking 100.0%   errors 0
-      8s   20.0 req/s   p50   19.5 ms   p99   23.1 ms   not full ranking 100.0%   errors 0
-     10s   20.0 req/s   p50   20.4 ms   p99   42.6 ms   not full ranking 100.0%   errors 0
-     12s   20.0 req/s   p50   20.5 ms   p99   45.7 ms   not full ranking 100.0%   errors 0
-     14s   20.0 req/s   p50   23.6 ms   p99  262.6 ms   not full ranking 100.0%   errors 0
-     16s   20.0 req/s   p50   22.5 ms   p99   50.1 ms   not full ranking 100.0%   errors 0
-     18s   20.0 req/s   p50   19.7 ms   p99   27.0 ms   not full ranking 100.0%   errors 0
-     20s   20.0 req/s   p50   22.2 ms   p99   30.5 ms   not full ranking 100.0%   errors 0
+      2s   20.0 req/s   p50   23.1 ms   p99   96.0 ms   not full ranking 100.0%   errors 0
+      4s   20.0 req/s   p50   23.4 ms   p99   40.2 ms   not full ranking 100.0%   errors 0
+      6s   20.0 req/s   p50   22.4 ms   p99   26.0 ms   not full ranking 100.0%   errors 0
+      8s   20.0 req/s   p50   22.6 ms   p99   45.6 ms   not full ranking 100.0%   errors 0
+     10s   20.0 req/s   p50   23.5 ms   p99   71.7 ms   not full ranking 100.0%   errors 0
+     12s   20.0 req/s   p50   22.4 ms   p99   40.3 ms   not full ranking 100.0%   errors 0
+     14s   20.0 req/s   p50   22.8 ms   p99  124.3 ms   not full ranking 100.0%   errors 0
+     16s   20.0 req/s   p50   22.9 ms   p99   38.7 ms   not full ranking 100.0%   errors 0
+     18s   20.0 req/s   p50   22.6 ms   p99   89.6 ms   not full ranking 100.0%   errors 0
+     20s   20.0 req/s   p50   22.4 ms   p99   25.9 ms   not full ranking 100.0%   errors 0
 $ docker compose start ranker
 $ docker compose pause ranker
 
 --- ranker hung (paused) ---
-      2s   19.5 req/s   p50  103.5 ms   p99  156.6 ms   not full ranking 100.0%   errors 0
-      4s   20.0 req/s   p50   99.8 ms   p99  103.7 ms   not full ranking 100.0%   errors 0
-      6s   19.5 req/s   p50   99.8 ms   p99  110.9 ms   not full ranking 100.0%   errors 0
-      8s   20.5 req/s   p50   99.8 ms   p99  107.0 ms   not full ranking 100.0%   errors 0
-     10s   20.0 req/s   p50  102.2 ms   p99  136.5 ms   not full ranking 100.0%   errors 0
-     12s   19.5 req/s   p50  102.8 ms   p99  107.5 ms   not full ranking 100.0%   errors 0
-     14s   20.0 req/s   p50  103.0 ms   p99  106.8 ms   not full ranking 100.0%   errors 0
-     16s   20.0 req/s   p50  102.0 ms   p99  106.9 ms   not full ranking 100.0%   errors 0
-     18s   20.0 req/s   p50  103.8 ms   p99  136.0 ms   not full ranking 100.0%   errors 0
-     20s   20.0 req/s   p50  104.7 ms   p99  129.6 ms   not full ranking 100.0%   errors 0
+      2s   19.0 req/s   p50  104.1 ms   p99  227.0 ms   not full ranking 100.0%   errors 0
+      4s   20.5 req/s   p50  103.3 ms   p99  121.0 ms   not full ranking 100.0%   errors 0
+      6s   20.0 req/s   p50  103.0 ms   p99  150.2 ms   not full ranking 100.0%   errors 0
+      8s   20.0 req/s   p50  102.6 ms   p99  145.7 ms   not full ranking 100.0%   errors 0
+     10s   19.5 req/s   p50  103.3 ms   p99  118.9 ms   not full ranking 100.0%   errors 0
+     12s   20.0 req/s   p50  105.4 ms   p99  160.1 ms   not full ranking 100.0%   errors 0
+     14s   20.5 req/s   p50  102.9 ms   p99  119.8 ms   not full ranking 100.0%   errors 0
+     16s   20.0 req/s   p50  104.2 ms   p99  110.0 ms   not full ranking 100.0%   errors 0
+     18s   20.0 req/s   p50  104.5 ms   p99  116.5 ms   not full ranking 100.0%   errors 0
+     20s   19.5 req/s   p50  103.9 ms   p99  115.6 ms   not full ranking 100.0%   errors 0
 
 phase                    requests   p50 ms   p99 ms   served by
-ranker healthy                321     22.7     87.7   {'full': 320, 'trending_fallback': 1}
-ranker stopped                321     21.0    158.3   {'light_fallback': 321}
-ranker hung (paused)          321    102.1    128.0   {'light_fallback': 321}
+ranker healthy                321     23.4     67.4   {'full': 319, 'light_fallback': 2}
+ranker stopped                321     22.6     71.7   {'light_fallback': 321}
+ranker hung (paused)          321    103.7    145.3   {'light_fallback': 319, 'trending_fallback': 2}
   PASS  healthy: the full ranker serves the page
   PASS  stopped: the light model's order is served, and no user sees an error
-  PASS  hung: still no errors, but p50 jumps from 23 ms to 102 ms, since every request now waits out the ranker's deadline
+  PASS  hung: still no errors, but p50 jumps from 23 ms to 104 ms, since every request now waits out the ranker's deadline
 
 TEACHING POINT  Dead is cheap, the fallback serves at once. Hung is expensive, every request waits the full deadline. Set deadlines from the budget and alert on the fallback share.
 

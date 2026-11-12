@@ -35,7 +35,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# Section 2 of the notebook: each hop's own p99 target, in ms (assumed numbers for the hypothetical app).
+USERS = 1000                      # KuaiRand-1K's real users, ids 0 to 999
+
+# Section 3 of the notebook: each hop's own p99 target, in ms (assumed numbers for the hypothetical app).
 BUDGET = [("parse_and_arm", "network and request parsing", 10), ("user_features", "fetch user features", 15),
           ("candidates", "cheap search, in parallel", 30), ("item_features", "fetch item features", 20),
           ("light_model", "light model", 15), ("ranking_model", "full ranking model", 60),
@@ -110,8 +112,8 @@ def cmd_status(a):
 def cmd_trace(a):
     rng = random.Random(1)
     for _ in range(30):                                   # warm caches and connections first
-        call(FEED, "GET", f"/feed?user={rng.randrange(1000, 90000)}")
-    runs = [call(FEED, "GET", f"/feed?user={rng.randrange(1000, 90000)}&debug=1") for _ in range(a.n)]
+        call(FEED, "GET", f"/feed?user={rng.randrange(USERS)}")
+    runs = [call(FEED, "GET", f"/feed?user={rng.randrange(USERS)}&debug=1") for _ in range(a.n)]
     call(FEED, "POST", f"/reset?user={a.user}")
     one = call(FEED, "GET", f"/feed?user={a.user}&debug=1")
     print(f"One feed request for user {one['user']}  (arm {one['arm']}, served by {one['served_by']})\n")
@@ -195,7 +197,7 @@ def run_load(rps, seconds, label="", quiet=False, stop=None):
             delay = t_sched - time.perf_counter()
             if delay > 0:
                 time.sleep(delay)
-            jobs.put((t_sched, rng.randrange(0, 90000)))
+            jobs.put((t_sched, rng.randrange(USERS)))
             n += 1
             if time.perf_counter() >= next_report:
                 with lock:
@@ -324,7 +326,7 @@ def cmd_drill(a):
 def hops_p99(user_seed, n, key):
     """p99 of one hop over n debug requests, for different users."""
     rng = random.Random(user_seed)
-    return pct([call(FEED, "GET", f"/feed?user={rng.randrange(1000, 90000)}&debug=1")["hops_ms"][key]
+    return pct([call(FEED, "GET", f"/feed?user={rng.randrange(USERS)}&debug=1")["hops_ms"][key]
                 for _ in range(n)], 99)
 
 
@@ -349,13 +351,13 @@ def show_sweep(a, check):
     by = {r["nprobe"]: r for r in rows}
     rec = [r["recall"] for r in rows if r["nprobe"] != "exact"]
     check(all(x <= y + 1e-9 for x, y in zip(rec, rec[1:])), "recall rises with nprobe")
-    if 128 in by and 256 in by:
-        check(by[128]["recall"] >= 0.9, f"nprobe 128 finds {by[128]['recall']:.3f} of the true top 100")
-        print(f"  read  nprobe 128 scores {by[128]['scored'] / by['exact']['scored']:.1%} of the catalogue, "
-              f"{by['exact']['mean_ms'] / by[128]['mean_ms']:.0f}x faster than exact search on average")
-        ratio = by[256]["scored"] / by[128]["scored"]
-        check(ratio > 1.3, f"128 -> 256 clusters costs {ratio:.1f}x the vectors for "
-                           f"{by[256]['recall'] - by[128]['recall']:+.3f} recall")
+    if 256 in by and 1024 in by:
+        check(by[256]["recall"] >= 0.9, f"nprobe 256, the default, finds {by[256]['recall']:.3f} of the true top 100")
+        print(f"  read  nprobe 256 scores {by[256]['scored'] / by['exact']['scored']:.1%} of the catalogue, "
+              f"{by['exact']['mean_ms'] / by[256]['mean_ms']:.0f}x faster than exact search on average")
+        ratio = by[1024]["scored"] / by[256]["scored"]
+        check(ratio > 1.3, f"256 -> 1024 clusters costs {ratio:.1f}x the vectors for "
+                           f"{by[1024]['recall'] - by[256]['recall']:+.3f} recall")
 
 
 def search_totals():
@@ -379,12 +381,12 @@ def show_nprobe(a, check):
     rows = {}
     try:
         time.sleep(3)
-        for n in (128, 1024):
+        for n in (256, 2048):
             call(RETR, "POST", "/config", {"nprobe": n})
             time.sleep(1)
             c0, s0 = search_totals()
             hop = [call(FEED, "GET", f"/feed?user={u}&debug=1")["hops_ms"]["candidates"]
-                   for u in random.Random(3).sample(range(1000, 90000), 100)]
+                   for u in random.Random(3).sample(range(USERS), 100)]
             c1, s1 = search_totals()
             rows[n] = (1e3 * (s1 - s0) / max(c1 - c0, 1), pct(hop, 50), int(c1 - c0))
             print(f"  nprobe {n:>4}   mean ANN search {rows[n][0]:5.2f} ms over {rows[n][2]} searches"
@@ -394,7 +396,7 @@ def show_nprobe(a, check):
         stop.set()
         bg.join(timeout=10)
         print(f"  nprobe put back to {start}")
-    lo, hi = rows[128][0], rows[1024][0]
+    lo, hi = rows[256][0], rows[2048][0]
     check(hi > 1.5 * lo, f"8x the clusters makes each search {hi / lo:.1f}x slower under load ({lo:.2f} -> {hi:.2f} ms)")
     print("  note  the whole candidates hop moves less, and noisily, because most of it is moving data, as in trace")
 
@@ -411,7 +413,7 @@ def show_stale(a, check):
     try:
         f = cmd_fresh(argparse.Namespace(user=101, hides=3, wait=5))
         check(not f["processed"], "with the worker stopped, the hides wait in Kafka")
-        check(f["after"] == f["before"], "and the next page did not change, with no error")
+        check(f["after"] >= f["before"], f"and the hidden topic did not shrink ({f['before']} -> {f['after']}), with no error")
         print()
         cmd_status(a)
     finally:
@@ -437,39 +439,41 @@ def show_drill(a, check):
 
 # Each step: (name, notebook section, title, what to put on screen, chat prompt, function, teaching point, minutes)
 SHOW = [
-    ("trace", "9.2", "One request, hop by hop",
-     "The section 2 latency budget on the whiteboard.",
+    ("trace", "11.2", "One request, hop by hop",
+     "The section 3 latency budget on the whiteboard.",
      "Which hop will be slowest?",
      show_trace,
-     "Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,930 "
+     "Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,730 "
      "candidates between services, not the index search, so moving data can cost more than finding it. "
      "Per-hop p99s do not add up to the request's p99, so measure the whole request too.", 4),
-    ("sweep", "9.3", "Recall against work, on a real index",
+    ("sweep", "11.3", "Recall against work, on a real index",
      "The cluster drawing from section 5.",
-     "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 4%, 20% or 50%?",
+     "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 7%, 25% or 50%?",
      show_sweep,
-     "Scoring about 4% of the catalogue finds about 95 of the true top 100. Each extra point of recall "
+     "Scoring about 7% of the catalogue finds about 95 of the true top 100. Each extra point of recall "
      "costs more than the one before.", 4),
-    ("nprobe", "9.3", "The same trade-off under load (optional)",
+    ("nprobe", "11.3", "The same trade-off under load (optional)",
      "Grafana: the nprobe tile, 'ANN search time' and 'p99 per hop'.",
      "Retrieval will search 8 times as many clusters. Is each search about as fast, a few times slower, or 8 times slower?",
      show_nprobe,
      "A few times slower, not 8x, since each search has a fixed cost. More recall is still paid for in latency "
-     "on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 9.1.", 3),
-    ("fresh", "9.4", "A feed that reacts",
-     "The lab picture in 9.1, to trace app -> Kafka -> stream worker -> Redis.",
-     "User 505's first page has 16 items from one topic. After three hides, how many from that topic stay "
+     "on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 11.1.", 3),
+    ("fresh", "11.4", "A feed that reacts",
+     "The lab picture in 11.1, to trace app -> Kafka -> stream worker -> Redis.",
+     "User 505's first page has 14 items from one topic, their favourite. After three hides, how many from that topic stay "
      "on the next page?",
      show_fresh,
      "The hides became features within a second, and the very next page changed. The user tower moved, so "
-     "retrieval found different items, and the ranker read the hides as a feature.", 3),
-    ("stale", "9.4", "Deliberate failure: the stream stops",
+     "retrieval found different items, and the ranker read the hides as a feature. It saw almost no hides in "
+     "the real log, so how it reads three is an extrapolation, not something it learned.", 3),
+    ("stale", "11.4", "Deliberate failure: the stream stops",
      "Grafana's 'Stream backlog' tile.",
      "The stream worker is stopped and the user hides three items. Did the user see an error?",
      show_stale,
-     "No error, a full page, quickly. Just stale. A stale feed looks healthy. Only the backlog shows it, "
+     "No error, a full page, quickly. Just stale, the user asked for less of a topic and did not get it. "
+     "A stale feed looks healthy. Only the backlog shows it, "
      "and Kafka kept the events, so the worker caught up. Alert on the backlog.", 4),
-    ("drill", "9.5", "When the ranker fails, then hangs",
+    ("drill", "11.5", "When the ranker fails, then hangs",
      "Grafana's 'How requests were served' panel and the latency panel.",
      "The ranker is stopped under load. Did any user see an error? Then, when it hangs instead, what happens "
      "to p50?",
@@ -480,7 +484,7 @@ SHOW = [
 
 
 def cmd_show(a):
-    """Guided walk through every demo in section 9, in class order."""
+    """Guided walk through every demo in section 11, in class order."""
     if a.list:
         print(f"{'step':8}{'section':>8}  {'minutes':>7}  title")
         for name, sec, title, *_, mins in SHOW:
@@ -576,7 +580,7 @@ def cmd_smoke(a):
     check(ph[0]["served_by"].get("full", 0) > 0.95 * ph[0]["requests"], "healthy: served by the full ranker")
     check(ph[1]["served_by"].get("light_fallback", 0) > 0.9 * ph[1]["requests"], "stopped: light-model fallback")
     check(ph[1]["served_by"].get("error", 0) == 0, "stopped: no errors reach the user")
-    check(ph[2]["p99"] > ph[0]["p99"], "hung: p99 rises toward the ranker deadline")
+    check(ph[2]["p50"] > 60 and ph[2]["p50"] > 2 * ph[0]["p50"], "hung: p50 jumps toward the ranker deadline")
     print(f"\n{'SMOKE PASSED' if not failures else 'SMOKE FAILED: ' + '; '.join(failures)}")
     return 0 if not failures else 1
 

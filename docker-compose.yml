@@ -8,7 +8,6 @@ x-py: &py
   restart: unless-stopped
   environment: &pyenv
     N_ITEMS: ${N_ITEMS:-1000000}
-    N_USERS: ${N_USERS:-100000}
     DATA_DIR: /data
   volumes:
     - data:/data
@@ -45,6 +44,10 @@ services:
       <<: *pyenv
       OMP_NUM_THREADS: "4"
       OPENBLAS_NUM_THREADS: "4"
+      KUAIRAND_DIR: /kuairand
+    volumes:
+      - data:/data
+      - ${KUAIRAND_DIR:-./kuairand}:/kuairand
     depends_on:
       redis: {condition: service_healthy}
       redpanda: {condition: service_healthy}
@@ -54,7 +57,7 @@ services:
     command: ["uvicorn", "retrieval:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "warning"]
     environment:
       <<: *pyenv
-      NPROBE: ${NPROBE:-128}
+      NPROBE: ${NPROBE:-256}
     cpus: ${RETRIEVAL_CPUS:-2.0}
     ports: ["${BIND_ADDR:-127.0.0.1}:${RETRIEVAL_PORT:-8081}:8000"]
     depends_on:

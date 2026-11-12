@@ -1,8 +1,8 @@
-page 1 for user 505         topic 1: 16  topic 4: 3  topic 6: 1
+page 1 for user 505         topic 1: 14  topic 5: 3  topic 11: 1  topic 19: 1  topic 7: 1
 
 The user hides 3 items from topic 1. Each hide goes app -> Kafka -> stream worker -> Redis.
-  all events turned into features after 113 ms (the last one took 76 ms from app to Redis)
-page 2, after the hides     topic 6: 11  topic 4: 9
+  all events turned into features after 457 ms (the last one took 442 ms from app to Redis)
+page 2, after the hides     topic 5: 17  topic 14: 2  topic 6: 1
 
-topic 1 on the page: 16 before, 0 after
+topic 1 on the page: 14 before, 0 after
 session features the ranker read for page 2: {'engaged': {}, 'hidden': {'1': 3.0}}
