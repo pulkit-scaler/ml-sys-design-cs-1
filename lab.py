@@ -35,7 +35,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# Section 2 of the notebook: each hop's own p99 target, in ms (assumed numbers for the hypothetical app).
+# Section 3 of the notebook: each hop's own p99 target, in ms (assumed numbers for the hypothetical app).
 BUDGET = [("parse_and_arm", "network and request parsing", 10), ("user_features", "fetch user features", 15),
           ("candidates", "cheap search, in parallel", 30), ("item_features", "fetch item features", 20),
           ("light_model", "light model", 15), ("ranking_model", "full ranking model", 60),
@@ -437,39 +437,39 @@ def show_drill(a, check):
 
 # Each step: (name, notebook section, title, what to put on screen, chat prompt, function, teaching point, minutes)
 SHOW = [
-    ("trace", "9.2", "One request, hop by hop",
-     "The section 2 latency budget on the whiteboard.",
+    ("trace", "11.2", "One request, hop by hop",
+     "The section 3 latency budget on the whiteboard.",
      "Which hop will be slowest?",
      show_trace,
      "Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,930 "
      "candidates between services, not the index search, so moving data can cost more than finding it. "
      "Per-hop p99s do not add up to the request's p99, so measure the whole request too.", 4),
-    ("sweep", "9.3", "Recall against work, on a real index",
+    ("sweep", "11.3", "Recall against work, on a real index",
      "The cluster drawing from section 5.",
      "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 4%, 20% or 50%?",
      show_sweep,
      "Scoring about 4% of the catalogue finds about 95 of the true top 100. Each extra point of recall "
      "costs more than the one before.", 4),
-    ("nprobe", "9.3", "The same trade-off under load (optional)",
+    ("nprobe", "11.3", "The same trade-off under load (optional)",
      "Grafana: the nprobe tile, 'ANN search time' and 'p99 per hop'.",
      "Retrieval will search 8 times as many clusters. Is each search about as fast, a few times slower, or 8 times slower?",
      show_nprobe,
      "A few times slower, not 8x, since each search has a fixed cost. More recall is still paid for in latency "
-     "on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 9.1.", 3),
-    ("fresh", "9.4", "A feed that reacts",
-     "The lab picture in 9.1, to trace app -> Kafka -> stream worker -> Redis.",
+     "on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 11.1.", 3),
+    ("fresh", "11.4", "A feed that reacts",
+     "The lab picture in 11.1, to trace app -> Kafka -> stream worker -> Redis.",
      "User 505's first page has 16 items from one topic. After three hides, how many from that topic stay "
      "on the next page?",
      show_fresh,
      "The hides became features within a second, and the very next page changed. The user tower moved, so "
      "retrieval found different items, and the ranker read the hides as a feature.", 3),
-    ("stale", "9.4", "Deliberate failure: the stream stops",
+    ("stale", "11.4", "Deliberate failure: the stream stops",
      "Grafana's 'Stream backlog' tile.",
      "The stream worker is stopped and the user hides three items. Did the user see an error?",
      show_stale,
      "No error, a full page, quickly. Just stale. A stale feed looks healthy. Only the backlog shows it, "
      "and Kafka kept the events, so the worker caught up. Alert on the backlog.", 4),
-    ("drill", "9.5", "When the ranker fails, then hangs",
+    ("drill", "11.5", "When the ranker fails, then hangs",
      "Grafana's 'How requests were served' panel and the latency panel.",
      "The ranker is stopped under load. Did any user see an error? Then, when it hangs instead, what happens "
      "to p50?",
@@ -480,7 +480,7 @@ SHOW = [
 
 
 def cmd_show(a):
-    """Guided walk through every demo in section 9, in class order."""
+    """Guided walk through every demo in section 11, in class order."""
     if a.list:
         print(f"{'step':8}{'section':>8}  {'minutes':>7}  title")
         for name, sec, title, *_, mins in SHOW:
