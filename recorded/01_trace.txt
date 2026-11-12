@@ -2,38 +2,38 @@ One feed request for user 42  (arm B, served by full)
 
 hop                                this request  p99 of 200  budget
 network and request parsing              0.0 ms      0.0 ms   10 ms
-fetch user features                      0.2 ms      6.2 ms   15 ms
-cheap search, in parallel                5.6 ms     11.6 ms   30 ms
-fetch item features                      3.9 ms      8.9 ms   20 ms
-light model                              0.2 ms      0.3 ms   15 ms
-full ranking model                       3.9 ms     13.9 ms   60 ms
-combine scores, arrange the page         0.3 ms      0.5 ms   10 ms
-build the response                       0.3 ms      3.7 ms   15 ms
-total, server side                      14.4 ms     56.1 ms  175 ms
+fetch user features                      0.4 ms      1.2 ms   15 ms
+cheap search, in parallel                5.6 ms     11.4 ms   30 ms
+fetch item features                      3.8 ms      7.1 ms   20 ms
+light model                              0.2 ms      0.6 ms   15 ms
+full ranking model                       4.0 ms     18.8 ms   60 ms
+combine scores, arrange the page         0.3 ms      0.6 ms   10 ms
+build the response                       0.3 ms      0.7 ms   15 ms
+total, server side                      14.6 ms     60.5 ms  175 ms
 
-candidates  two_tower 1,500, new_items 150, trending 300
-            1,929 after merging and removing seen items, 500 after the light model, 20 on the page
+candidates  two_tower 1,500, new_items 150, trending 100
+            1,731 after merging and removing seen items, 500 after the light model, 20 on the page
 
 pos     item topic  source      P(click) P(finish)  P(hide)   value
-  1    16689     4  trending       0.386     0.114    0.009   1.970
-  2   715515     4  two_tower      0.238     0.084    0.006   1.530
-  3   689968     8  trending       0.330     0.066    0.014   1.196
-  4   441061     4  two_tower      0.350     0.068    0.011   1.305
-  5   309293     4  two_tower      0.371     0.058    0.012   1.221
-  6   523280     4  two_tower      0.285     0.058    0.010   1.077
-  7   621027     4  two_tower      0.295     0.068    0.013   1.027
-  8   790378     4  two_tower      0.193     0.077    0.009   1.012
-  9   946250     4  two_tower      0.312     0.061    0.013   1.003
- 10   935497     4  two_tower      0.108     0.093    0.002   0.997
- 11   869441     4  two_tower      0.107     0.096    0.002   0.938
- 12     5342     4  two_tower      0.246     0.063    0.012   0.927
- 13    44473     4  two_tower      0.114     0.093    0.004   0.922
- 14   826241     4  two_tower      0.249     0.066    0.013   0.882
- 15   145510     4  new_items          -         -        -       -  <- exploration slot
- 16   687905     4  two_tower      0.252     0.063    0.013   0.877
- 17   100265     4  trending       0.101     0.105    0.003   0.876
- 18   630339     4  two_tower      0.229     0.059    0.011   0.858
- 19   705896     4  two_tower      0.319     0.051    0.013   0.844
- 20   860877     4  two_tower      0.324     0.056    0.011   0.843
+  1   401777     5  two_tower      0.694     0.491    0.000   2.788
+  2   900433    11  new_items      0.571     0.459    0.000   2.502
+  3   462106     5  two_tower      0.644     0.471    0.000   2.676
+  4    56774     1  two_tower      0.657     0.378    0.000   2.309
+  5   921054    11  trending       0.591     0.444    0.000   2.490
+  6   452978     5  two_tower      0.620     0.460    0.000   2.616
+  7   161518     1  two_tower      0.563     0.378    0.000   2.215
+  8   444640    11  two_tower      0.584     0.422    0.000   2.421
+  9   991123     5  two_tower      0.693     0.448    0.000   2.603
+ 10   923338     1  two_tower      0.612     0.363    0.000   2.203
+ 11   621840     5  two_tower      0.640     0.449    0.000   2.570
+ 12   721140    11  trending       0.553     0.405    0.000   2.279
+ 13   559843     5  two_tower      0.633     0.441    0.000   2.563
+ 14   741190    11  new_items      0.544     0.397    0.000   2.232
+ 15   722748     5  new_items          -         -        -       -  <- exploration slot
+ 16   251817     5  two_tower      0.632     0.434    0.000   2.525
+ 17   304522    11  new_items      0.535     0.401    0.000   2.227
+ 18   196879     5  two_tower      0.628     0.430    0.000   2.520
+ 19   133608    11  two_tower      0.644     0.366    0.000   2.226
+ 20   874395     5  two_tower      0.655     0.432    0.000   2.513
 
-page of 20: 2 topics, sources {'trending': 3, 'two_tower': 16, 'new_items': 1}
+page of 20: 3 topics, sources {'two_tower': 14, 'new_items': 4, 'trending': 2}

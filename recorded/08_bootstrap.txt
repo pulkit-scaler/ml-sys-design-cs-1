@@ -1,0 +1,16 @@
+[kuairand 15:55:56] using /kuairand/KuaiRand-1K.tar.gz
+[kuairand 15:55:58]   read video_features_basic_1k.csv: 4,371,868 rows (2s)
+[kuairand 15:56:11]   read video_features_statistic_1k.csv: 4,371,868 rows (15s)
+[kuairand 15:56:13]   read log_standard_4_08_to_4_21_1k.csv: 5,055,984 rows (18s)
+[kuairand 15:56:17]   read log_standard_4_22_to_5_08_1k.csv: 6,657,061 rows (21s)
+[kuairand 15:56:17]   read log_random_4_22_to_5_08_1k.csv: 43,028 rows (21s)
+[kuairand 15:56:23] world: 1,000,000 of 4,371,868 videos (7,388 from the random-exposure pool), 1,000 users, 24 topics (tags 34, 39, 12, 67, 3 ... and 'other')
+[kuairand 15:56:25] training log: 240,000 real impressions of 1,517,746 on catalogue videos
+[bootstrap 15:56:25] world made: 1,000,000 videos, 1,000 users, 24 topics (32.6s)
+[bootstrap 15:56:58] IVF index built: 4,000 clusters (32.4s)
+[bootstrap 15:56:58] training log: 240,000 real impressions, label rates click 0.3771, finish 0.1519, like 0.0158, hide 0.0003 (0.3s)
+[bootstrap 15:57:02] multi-task ranker trained on 204,000 impressions, checked on 36,000 held out, holdout AUC {'click': 0.733, 'finish': 0.739, 'like': 0.665, 'hide': 0.54} (4.6s)
+[bootstrap 15:57:02] positive labels, trained on / held out: click 78,247 / 12,263, finish 31,640 / 4,827, like 3,354 / 430, hide 56 / 9
+[bootstrap 15:57:03] light ranker trained, holdout click AUC 0.697
+[bootstrap 15:57:04] redis loaded: 1,000,000 item records, 1,000 user records (1.3s)
+[bootstrap 15:57:04] done

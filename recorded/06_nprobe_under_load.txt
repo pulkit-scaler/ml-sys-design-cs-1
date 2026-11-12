@@ -1,13 +1,13 @@
-retrieval now visits 128 clusters per search
-nprobe 128: ANN p50/p99 ms over the last 30 s:
-0.77
-1.90
+retrieval now visits 256 clusters per search
+nprobe 256: ANN p50/p99 ms over the last 30 s:
+1.46
+3.25
   candidates hop p99:
-7.97
-retrieval now visits 1024 clusters per search
-nprobe 1024: ANN p50/p99 ms over the last 30 s:
-3.02
-6.69
+7.99
+retrieval now visits 2048 clusters per search
+nprobe 2048: ANN p50/p99 ms over the last 30 s:
+5.67
+8.64
   candidates hop p99:
-17.60
-retrieval now visits 128 clusters per search
+15.99
+retrieval now visits 256 clusters per search

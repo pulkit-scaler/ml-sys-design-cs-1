@@ -25,7 +25,8 @@ INDEX = faiss.read_index(f"{W.DATA}/ivf.index")
 TRENDING = np.load(f"{W.DATA}/trending.npy")
 NEW_IDS = np.flatnonzero(WORLD["age_h"] < 24).astype(np.int64)   # uploaded in the last day
 NEW_VECS = VECS[NEW_IDS]
-CONF = {"nprobe": int(os.environ.get("NPROBE", 128)), "k": 1500}
+CONF = {"nprobe": int(os.environ.get("NPROBE", 256)), "k": 1500}
+TRENDING_K = 100                  # popular videos are strong on every metric, so cap how many enter the race
 LOCK = threading.Lock()
 
 app = FastAPI()
@@ -69,7 +70,7 @@ def candidates(req: Req):
     out.append(("new_items", NEW_IDS[np.argpartition(-s, 150)[:150]]))
     ms["new_items"] = (time.perf_counter() - t) * 1e3
 
-    out.append(("trending", TRENDING[:300]))
+    out.append(("trending", TRENDING[:TRENDING_K]))
 
     # Merge: first source wins a duplicate.
     seen, ids_all, src_all = set(), [], []
