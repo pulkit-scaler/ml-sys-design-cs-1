@@ -10,11 +10,14 @@
     python3 lab.py page [--user N]        the user's next page and session features, nothing reset
     python3 lab.py drill                  ranker healthy, stopped, then hung, under load (uses docker compose)
     python3 lab.py smoke                  run every demo and check the results (about a minute)
+    python3 lab.py show                   guided class run: each demo's chat question, then the demo,
+                                          its PASS/FAIL checks and the teaching point. Enter between steps.
+    python3 lab.py show --list            the steps.  --only fresh,stale runs some.  --auto runs with no pauses
 
 Where it connects. By default the ports in .env (or the defaults) on localhost.
 Set LAB_HOST to drive a lab running on another machine, for example
     LAB_HOST=10.0.0.5 python3 lab.py trace
-The drill and smoke commands also run docker compose, so run those on the lab machine.
+The drill, smoke and show commands also run docker compose, so run those on the lab machine.
 """
 import argparse
 import http.client
@@ -132,7 +135,8 @@ def cmd_trace(a):
               f"{f('finish', 9)} {f('hide', 8)} {val}{flag}")
     topics = Counter(r["topic"] for r in one["page"])
     print(f"\npage of 20: {len(topics)} topics, sources {dict(Counter(r['source'] for r in one['page']))}")
-    return 0
+    return {"one": one, "p99_total": pct(tot, 99), "hop_p99": {k: pct([r["hops_ms"][k] for r in runs], 99)
+                                                                for k, *_ in BUDGET}}
 
 
 # ---------------------------------------------------------------------------------------------- sweep
@@ -143,7 +147,7 @@ def cmd_sweep(a):
     for row in r["rows"]:
         print(f"{row['nprobe']:>7}{row['recall']:>12.3f}{row['scored']:>16,}{row['scored'] / r['items']:>8.1%}"
               f"{row['mean_ms']:>9.2f}{row['p99_ms']:>8.2f}")
-    return 0
+    return r["rows"]
 
 
 def cmd_nprobe(a):
@@ -275,7 +279,8 @@ def cmd_fresh(a):
     show_topics("page 2, after the hides", after)
     print(f"\ntopic {hide_topic} on the page: {before[hide_topic]} before, {after[hide_topic]} after")
     print(f"session features the ranker read for page 2: {second['session']}")
-    return {"topic": hide_topic, "before": before[hide_topic], "after": after[hide_topic], "processed": waited is not None}
+    return {"topic": hide_topic, "before": before[hide_topic], "after": after[hide_topic], "processed": waited is not None,
+            "waited_ms": waited * 1e3 if waited is not None else None}
 
 
 def cmd_page(a):
@@ -313,6 +318,223 @@ def cmd_drill(a):
     for p in phases:
         print(f"{p['phase']:24}{p['requests']:>9}{p['p50']:>9.1f}{p['p99']:>9.1f}   {p['served_by']}")
     return phases
+
+
+# ---------------------------------------------------------------------------------------------- show
+def hops_p99(user_seed, n, key):
+    """p99 of one hop over n debug requests, for different users."""
+    rng = random.Random(user_seed)
+    return pct([call(FEED, "GET", f"/feed?user={rng.randrange(1000, 90000)}&debug=1")["hops_ms"][key]
+                for _ in range(n)], 99)
+
+
+def show_trace(a, check):
+    t = cmd_trace(argparse.Namespace(user=42, n=200, rows=a.rows))
+    check(t["one"]["served_by"] == "full" and len(t["one"]["page"]) == 20,
+          "one request is served by the full ranker, a page of 20")
+    over = [label for key, label, b in BUDGET if t["hop_p99"][key] > b]
+    check(not over, "every hop's p99 is inside its budget" + (f" (over: {', '.join(over)})" if over else ""))
+    check(t["p99_total"] < sum(b for *_, b in BUDGET),
+          f"the whole request's p99 is {t['p99_total']:.1f} ms, inside 175 ms")
+    slow = sorted(BUDGET, key=lambda h: -t["hop_p99"][h[0]])[:2]
+    print(f"  read  slowest hops by p99 in this run: {slow[0][1]} {t['hop_p99'][slow[0][0]]:.1f} ms, "
+          f"then {slow[1][1]} {t['hop_p99'][slow[1][0]]:.1f} ms")
+    hop_sum = sum(t["hop_p99"].values())
+    print(f"  note  the eight hop p99s add up to {hop_sum:.1f} ms, the request's p99 is {t['p99_total']:.1f} ms. "
+          "They need not agree.")
+
+
+def show_sweep(a, check):
+    rows = cmd_sweep(argparse.Namespace(users=200, nprobes="1,4,16,64,128,256,1024"))
+    by = {r["nprobe"]: r for r in rows}
+    rec = [r["recall"] for r in rows if r["nprobe"] != "exact"]
+    check(all(x <= y + 1e-9 for x, y in zip(rec, rec[1:])), "recall rises with nprobe")
+    if 128 in by and 256 in by:
+        check(by[128]["recall"] >= 0.9, f"nprobe 128 finds {by[128]['recall']:.3f} of the true top 100")
+        print(f"  read  nprobe 128 scores {by[128]['scored'] / by['exact']['scored']:.1%} of the catalogue, "
+              f"{by['exact']['mean_ms'] / by[128]['mean_ms']:.0f}x faster than exact search on average")
+        ratio = by[256]["scored"] / by[128]["scored"]
+        check(ratio > 1.3, f"128 -> 256 clusters costs {ratio:.1f}x the vectors for "
+                           f"{by[256]['recall'] - by[128]['recall']:+.3f} recall")
+
+
+def search_totals():
+    """Count and total seconds of ANN searches so far, from the histogram behind 'ANN search time'."""
+    c = http.client.HTTPConnection(*RETR, timeout=5)
+    c.request("GET", "/metrics")
+    text = c.getresponse().read().decode()
+    c.close()
+    vals = {ln.split()[0]: float(ln.split()[1]) for ln in text.splitlines()
+            if ln.startswith(("retrieval_search_seconds_count", "retrieval_search_seconds_sum"))}
+    return vals["retrieval_search_seconds_count"], vals["retrieval_search_seconds_sum"]
+
+
+def show_nprobe(a, check):
+    start = call(RETR, "GET", "/config")["nprobe"]
+    stop = threading.Event()
+    bg = threading.Thread(target=run_load, args=(a.rps, 3600), kwargs={"quiet": True, "stop": stop}, daemon=True)
+    print(f"Background traffic at {a.rps:g} requests a second, so the index is busy. "
+          "About 10 seconds at each setting.")
+    bg.start()
+    rows = {}
+    try:
+        time.sleep(3)
+        for n in (128, 1024):
+            call(RETR, "POST", "/config", {"nprobe": n})
+            time.sleep(1)
+            c0, s0 = search_totals()
+            hop = [call(FEED, "GET", f"/feed?user={u}&debug=1")["hops_ms"]["candidates"]
+                   for u in random.Random(3).sample(range(1000, 90000), 100)]
+            c1, s1 = search_totals()
+            rows[n] = (1e3 * (s1 - s0) / max(c1 - c0, 1), pct(hop, 50), int(c1 - c0))
+            print(f"  nprobe {n:>4}   mean ANN search {rows[n][0]:5.2f} ms over {rows[n][2]} searches"
+                  f"   candidates hop p50 {rows[n][1]:5.1f} ms")
+    finally:
+        call(RETR, "POST", "/config", {"nprobe": start})
+        stop.set()
+        bg.join(timeout=10)
+        print(f"  nprobe put back to {start}")
+    lo, hi = rows[128][0], rows[1024][0]
+    check(hi > 1.5 * lo, f"8x the clusters makes each search {hi / lo:.1f}x slower under load ({lo:.2f} -> {hi:.2f} ms)")
+    print("  note  the whole candidates hop moves less, and noisily, because most of it is moving data, as in trace")
+
+
+def show_fresh(a, check):
+    f = cmd_fresh(argparse.Namespace(user=505, hides=3, wait=10))
+    check(f["processed"], "all three hides became features in Redis"
+          + (f", {f['waited_ms']:.0f} ms after they were sent" if f["processed"] else ""))
+    check(f["after"] < f["before"], f"the hidden topic shrinks on the next page ({f['before']} -> {f['after']})")
+
+
+def show_stale(a, check):
+    compose("stop", "stream-worker")
+    try:
+        f = cmd_fresh(argparse.Namespace(user=101, hides=3, wait=5))
+        check(not f["processed"], "with the worker stopped, the hides wait in Kafka")
+        check(f["after"] == f["before"], "and the next page did not change, with no error")
+        print()
+        cmd_status(a)
+    finally:
+        compose("start", "stream-worker")
+    s, waited = wait_stream(20)
+    print()
+    cmd_status(a)
+    check(waited is not None, f"the restarted worker caught up, {s['processed']} of {s['produced']} events")
+    print()
+    cmd_page(argparse.Namespace(user=101))
+
+
+def show_drill(a, check):
+    ph = cmd_drill(argparse.Namespace(rps=a.rps, seconds=a.seconds))
+    h, s, g = ph
+    check(h["served_by"].get("full", 0) > 0.95 * h["requests"], "healthy: the full ranker serves the page")
+    check(s["served_by"].get("light_fallback", 0) > 0.9 * s["requests"] and not s["served_by"].get("error"),
+          "stopped: the light model's order is served, and no user sees an error")
+    check(g["p50"] > 60 and not g["served_by"].get("error"),
+          f"hung: still no errors, but p50 jumps from {h['p50']:.0f} ms to {g['p50']:.0f} ms, "
+          "since every request now waits out the ranker's deadline")
+
+
+# Each step: (name, notebook section, title, what to put on screen, chat prompt, function, teaching point, minutes)
+SHOW = [
+    ("trace", "9.2", "One request, hop by hop",
+     "The section 2 latency budget on the whiteboard.",
+     "Which hop will be slowest?",
+     show_trace,
+     "Compare the slowest hops above with the chat's guesses. Candidate search is mostly moving about 1,930 "
+     "candidates between services, not the index search, so moving data can cost more than finding it. "
+     "Per-hop p99s do not add up to the request's p99, so measure the whole request too.", 4),
+    ("sweep", "9.3", "Recall against work, on a real index",
+     "The cluster drawing from section 5.",
+     "To find 95 of the true top 100, what share of the catalogue must one search score? 1%, 4%, 20% or 50%?",
+     show_sweep,
+     "Scoring about 4% of the catalogue finds about 95 of the true top 100. Each extra point of recall "
+     "costs more than the one before.", 4),
+    ("nprobe", "9.3", "The same trade-off under load (optional)",
+     "Grafana: the nprobe tile, 'ANN search time' and 'p99 per hop'.",
+     "Retrieval will search 8 times as many clusters. Is each search about as fast, a few times slower, or 8 times slower?",
+     show_nprobe,
+     "A few times slower, not 8x, since each search has a fixed cost. More recall is still paid for in latency "
+     "on every request, and at 100x the catalogue that cost no longer fits in 30 ms, which is Checkpoint 9.1.", 3),
+    ("fresh", "9.4", "A feed that reacts",
+     "The lab picture in 9.1, to trace app -> Kafka -> stream worker -> Redis.",
+     "User 505's first page has 16 items from one topic. After three hides, how many from that topic stay "
+     "on the next page?",
+     show_fresh,
+     "The hides became features within a second, and the very next page changed. The user tower moved, so "
+     "retrieval found different items, and the ranker read the hides as a feature.", 3),
+    ("stale", "9.4", "Deliberate failure: the stream stops",
+     "Grafana's 'Stream backlog' tile.",
+     "The stream worker is stopped and the user hides three items. Did the user see an error?",
+     show_stale,
+     "No error, a full page, quickly. Just stale. A stale feed looks healthy. Only the backlog shows it, "
+     "and Kafka kept the events, so the worker caught up. Alert on the backlog.", 4),
+    ("drill", "9.5", "When the ranker fails, then hangs",
+     "Grafana's 'How requests were served' panel and the latency panel.",
+     "The ranker is stopped under load. Did any user see an error? Then, when it hangs instead, what happens "
+     "to p50?",
+     show_drill,
+     "Dead is cheap, the fallback serves at once. Hung is expensive, every request waits the full deadline. "
+     "Set deadlines from the budget and alert on the fallback share.", 5),
+]
+
+
+def cmd_show(a):
+    """Guided walk through every demo in section 9, in class order."""
+    if a.list:
+        print(f"{'step':8}{'section':>8}  {'minutes':>7}  title")
+        for name, sec, title, *_, mins in SHOW:
+            print(f"{name:8}{sec:>8}  {mins:>7}  {title}")
+        return 0
+    steps = [s for s in SHOW if not a.only or s[0] in a.only.split(",")]
+    unknown = set(a.only.split(",")) - {s[0] for s in SHOW} if a.only else set()
+    if unknown:
+        print(f"unknown step(s): {', '.join(sorted(unknown))}. See: python3 lab.py show --list")
+        return 2
+    auto = a.auto or not sys.stdin.isatty()
+    results = []
+    bar = "=" * 78
+    try:
+        for i, (name, sec, title, screen, prompt, fn, point, mins) in enumerate(steps, 1):
+            print(f"\n{bar}\nSTEP {i} of {len(steps)}   {title}   (notebook {sec}, about {mins} min)\n{bar}")
+            print(f"ON SCREEN       {screen}")
+            print(f"POST IN CHAT    \"{prompt}\"")
+            if not auto:
+                ans = input("\nEnter to run it, s to skip, q to stop the show: ").strip().lower()
+                if ans == "q":
+                    break
+                if ans == "s":
+                    results.append((name, "skipped", []))
+                    continue
+            print()
+            fails = []
+
+            def check(cond, msg):
+                print(f"  {'PASS' if cond else 'FAIL'}  {msg}", flush=True)
+                if not cond:
+                    fails.append(msg)
+
+            try:
+                fn(a, check)
+            except Exception as e:                       # one broken demo should not end the class
+                check(False, f"the demo raised {e.__class__.__name__}: {e}")
+            print(f"\nTEACHING POINT  {point}")
+            results.append((name, "passed" if not fails else "FAILED", fails))
+            if not auto and i < len(steps):
+                input("\nEnter for the next demo: ")
+    except (KeyboardInterrupt, EOFError):
+        print("\nshow stopped")
+    finally:                                             # leave the lab as a class expects to find it
+        for args in (("unpause", "ranker"), ("start", "ranker", "stream-worker")):
+            subprocess.run(["docker", "compose", *args], cwd=HERE, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+    print(f"\n{bar}\nSHOW SUMMARY")
+    for name, status, fails in results:
+        print(f"  {name:8}{status}" + (f"   {'; '.join(fails)}" if fails else ""))
+    bad = [r for r in results if r[1] == "FAILED"]
+    print("ALL DEMOS PASSED" if results and not bad else f"{len(bad)} demo(s) failed. Use the recorded runs in "
+          "the notebook for those.")
+    return 1 if bad else 0
 
 
 # ---------------------------------------------------------------------------------------------- smoke
@@ -386,6 +608,13 @@ def main():
     p.add_argument("--seconds", type=float, default=20)
     p = sub.add_parser("smoke")
     p.add_argument("--rps", type=float, default=15)
+    p = sub.add_parser("show", help="guided run of every demo in class order")
+    p.add_argument("--auto", action="store_true", help="no pauses, for a rehearsal or a recording")
+    p.add_argument("--only", default="", help="comma-separated steps, for example fresh,stale")
+    p.add_argument("--list", action="store_true", help="list the steps and stop")
+    p.add_argument("--rows", type=int, default=5, help="page rows the trace step prints")
+    p.add_argument("--rps", type=float, default=20)
+    p.add_argument("--seconds", type=float, default=20, help="length of each drill phase")
     a = ap.parse_args()
     out = globals()[f"cmd_{a.cmd}"](a)
     sys.exit(out if isinstance(out, int) else 0)
