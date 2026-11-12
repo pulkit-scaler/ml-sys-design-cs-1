@@ -101,12 +101,12 @@ python3 lab.py show --auto              # no pauses, about two minutes, for a re
 
 | Step | Notebook | What the checks test |
 |---|---|---|
-| `trace` | 9.2 | A full page of 20 from the full ranker, every hop's p99 inside its budget, the request's p99 inside 175 ms |
-| `sweep` | 9.3 | Recall rises with nprobe, nprobe 128 finds at least 0.9 of the true top 100, 256 clusters cost more vectors than 128 |
-| `nprobe` | 9.3, optional | Under load, 8 times the clusters makes each search slower, read from the "ANN search time" histogram |
-| `fresh` | 9.4 | Three hides become features in Redis, and the hidden topic shrinks on the next page |
-| `stale` | 9.4 | With the stream worker stopped, the hides wait in Kafka and the page does not change, with no error. Restarted, it catches up |
-| `drill` | 9.5 | Ranker stopped, the fallback serves with no errors. Ranker hung, still no errors, but p50 jumps past the 80 ms deadline |
+| `trace` | 11.2 | A full page of 20 from the full ranker, every hop's p99 inside its budget, the request's p99 inside 175 ms |
+| `sweep` | 11.3 | Recall rises with nprobe, nprobe 128 finds at least 0.9 of the true top 100, 256 clusters cost more vectors than 128 |
+| `nprobe` | 11.3, optional | Under load, 8 times the clusters makes each search slower, read from the "ANN search time" histogram |
+| `fresh` | 11.4 | Three hides become features in Redis, and the hidden topic shrinks on the next page |
+| `stale` | 11.4 | With the stream worker stopped, the hides wait in Kafka and the page does not change, with no error. Restarted, it catches up |
+| `drill` | 11.5 | Ranker stopped, the fallback serves with no errors. Ranker hung, still no errors, but p50 jumps past the 80 ms deadline |
 
 The show stops and restarts containers as the demos need, and always leaves the
 ranker and the stream worker running and nprobe as it found it, even after Ctrl-C.
